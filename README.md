@@ -427,6 +427,155 @@ public ResponseEntity<ResponData<Products>> create(@Valid @RequestBody Products 
 ```
 >`400 Bad request`
 
+## Relasi Entity class
+Entity biasanya untuk manaru structur db dan menjadikan contractor mauoun getter setter.
+
+-	Membuat folder baru untuk `category` didalam folder `Etintas`
+-	Setelah membuat entitas maka selanjutkan menambahkan relasi ke entitas product dengan menambahkan field category dan menambahkan anotasi `@ManyToOne`
+
+### Contoh Code Entity Category
+
+```
+package com.example.demoapis.models.entity;
+
+import jakarta.persistence.*;
+
+@Entity
+@Table(name = "tbl_category")
+public class Category {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    @Column(length = 100, nullable = false, unique = true)
+    private String name;
+
+    // getter setter
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+}
+```
+
+### Code tambahan di Entity Product
+```
+@ManyToOne
+private Category category;
+```
+### Tambahan setter getter di entity product
+```
+public Category getCategory() {
+    return category;
+}
+
+public void setCategory(Category category) {
+    this.category = category;
+```
+Disinih kita sudah berhasil menrelasikan table category ke product
+Ketika di run spring akan generet table category dan akan mengupdate table product dengan adanya penambahan `foreign key Category_id `
+
+Berikut log hasil nay setelah di run :
+> Hibernate: create table tbl_category (id bigint not null auto_increment, name varchar(100) not null, primary key (id)) engine=InnoDB
+Hibernate: alter table tbl_products add column category_id bigint
+Hibernate: alter table tbl_category drop index UK_8f25rdca1qev4kqtyrxwsx0k8
+Hibernate: alter table tbl_category add constraint UK_8f25rdca1qev4kqtyrxwsx0k8 unique (name)
+Hibernate: alter table tbl_products add constraint FKl5l3hu2fh1ixbx8ejat9df13p foreign key (category_id) references tbl_category (id)
+
+Penjelasnnya :
+| Log | README |
+| ------ | ------ |
+|ibernate: create table tbl_category (id bigint not null auto_increment, name varchar(100) not null, primary key (id)) engine=InnoDB|Spring akan memuat table baru dengan nama category
+|Hibernate: alter table tbl_products add column category_id bigint|Spring akan memanbahkan field baru di tbl_products dengan nama category_id
+|Hibernate: alter table tbl_category drop index UK_8f25rdca1qev4kqtyrxwsx0k8 Hibernate:alter table tbl_category add constraint UK_8f25rdca1qev4kqtyrxwsx0k8 unique (name) Hibernate: alter table tbl_products add constraint FKl5l3hu2fh1ixbx8ejat9df13p foreign key (category_id) references tbl_category (id)|Spring membaut konstrain untuk foregn key nya|
+
+-	Setelah itu kita membuat Entity baru lagi bernama Suplier
+-	Dimnh suplier berelasi dengan product tetapi sedikit berbeda kalau categori dengan product itu relasi many to one atau one to many tergantung dari manh kita melihat. Sedang kalau prodcut dengan suplier many to many maksudnya adalah 1 product bisa di suplai oleh lebih dari satu suplier dan sebalinya 1 suplier itu bisa saja mensuplay lebidah dari 1 product jadi relasinya adalah many to many.
+-	Lalu kita buat entity suplier
+-	Setelah membuat entity supplier maka selanjutnya membuat relasi di entity product dan category
+
+### Contoh Code :
+- Code Supplier :
+```
+package com.example.demoapis.models.entity;
+
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+
+import java.io.Serializable;
+
+@Setter
+@Getter
+@Entity
+@Table(name = "tbl_supplier")
+public class Supplier implements Serializable {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    @Column(length = 150, nullable = false)
+    private String name;
+    @Column(length = 200, nullable = false)
+    private  String address;
+    @Column(length = 100, nullable = false, unique = true)
+    private String email;
+
+}
+```
+> Disinih saya sudah menggukan Lombok jadi tidak perlu mendeklarasikan setter getter hanya tambahkan saja anotasi @Setter dan @Getter
+
+- Contoh Code perubahan di product :
+```
+@ManyToMany
+private Set<Supplier> suppliers;
+```
+- Contoh Code Perubahan di  :
+```
+@ManyToMany
+private Set<Products> products;
+```
+Di dua class product dan category di kita deklarsakian relasi nya dengan anotasi `@ManyToMany`
+Kemudian kita perlu menambahkan konfigurasi tambahan untuk nantinya si JPA itu tahu implemntasi nya  di dalam `database` nya akan membentuk table apa. Karna kita tahu kalau di relational database many to many akan membentuk 1 table perantara, sehingga tabale product dan supplier nantinya tidak berelasi secara langsung tetapi akan ada semacam table perantaranya, jadi itu yang akan kita konfigurasi bagai mana tabale perantara itu di bentuk di dalam db mysql.
+Kita dapat melakukan konfigurasi ini dengan menambahkan anotasi `join colum` contoh codenya :
+```
+@ManyToMany
+@JoinTable(name = "tbl_product_supplier",
+        joinColumns = @JoinColumn(name = "product_id"),
+        inverseJoinColumns = @JoinColumn(name = "supplier_id"))
+private Set<Supplier> suppliers;
+```
+Penjelasnnya :
+| Log | README |
+| ------ | ------ |
+|@JoinTable(name = "tbl_product_supplier",|Ini table perantara|
+|joinColumns = @JoinColumn(name = "product_id"), inverseJoinColumns = @JoinColumn(name = "supplier_id"))|Di dalam table perantara yang berisi relasi colom product_id dan supplier_id|
+
+Lalu kita tambahkan juga di entity Supplier contoh :
+```
+@ManyToMany(mappedBy = "suppliers")
+private Set<Products> products;
+```
+Ketika di run lognya akan seperti ini :
+> Hibernate: create table tbl_product_supplier (product_id bigint not null, supplier_id bigint not null, primary key (product_id, supplier_id)) engine=InnoDB
+Hibernate: create table tbl_supplier (id bigint not null auto_increment, address varchar(200) not null, email varchar(100) not null, name varchar(150) not null, primary key (id)) engine=InnoDB
+Hibernate: alter table tbl_supplier drop index UK_fyo5x2bjlg39hupjkqld0u5pq
+Hibernate: alter table tbl_supplier add constraint UK_fyo5x2bjlg39hupjkqld0u5pq unique (email)
+Hibernate: alter table tbl_product_supplier add constraint FKgoe8jouowu104o9rkcxm1vtwg foreign key (supplier_id) references tbl_supplier (id)
+Hibernate: alter table tbl_product_supplier add constraint FK31b7retjb0hj4sq9f591c3hvt foreign key (product_id) references tbl_products (id)
+
+
 ## License
 
 AES
